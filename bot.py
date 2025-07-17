@@ -78,3 +78,6 @@ def run_flask():
 print("Бот запущен.")
 threading.Thread(target=run_flask).start()
 bot.polling()
+@bot.message_handler(commands=['id'])
+def send_user_id(message):
+    bot.send_message(message.chat.id, f"Ваш user_id: `{message.chat.id}`", parse_mode="Markdown")
