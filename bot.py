@@ -4,17 +4,17 @@ from telebot import types
 from flask import Flask
 import threading
 
-# Получаем токен из переменной окружения
 TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
-
-# Flask-сервер для Render
 app = Flask(__name__)
 
-# Канал, на который должна быть подписка (без @)
-CHANNEL_USERNAME = "atelier_NS"
+# Твой Telegram ID для логов
+ADMIN_CHAT_ID = 7564532772
 
-# Сопоставление кнопок и PDF-файлов
+# Канал, на который нужна подписка
+CHANNEL_USERNAME = "atelier_NS"  # без @
+
+# Прайсы и соответствующие им файлы
 price_files = {
     "man": ("👔 Пошив мужской одежды", "Прайс М.pdf"),
     "woman": ("👗 Пошив женской одежды", "Прайс Ж.pdf"),
@@ -23,46 +23,7 @@ price_files = {
     "repair": ("🧵 Ремонт и подгонка", "Прайс ремонт и подгонка.pdf")
 }
 
-# Проверка подписки
-def is_subscribed(chat_id):
-    try:
-        member = bot.get_chat_member(f"@{CHANNEL_USERNAME}", chat_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return False
-
-# Обработка команды /start
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    chat_id = message.chat.id
-    if not is_subscribed(chat_id):
-        text = (
-            "✨ *Рады приветствовать Вас в ателье Натальи Савиной.*\n\n"
-            "Чтобы получить доступ к прайсам, пожалуйста, подпишитесь на наш Telegram-канал:\n"
-            "👉 [@atelier_NS](https://t.me/atelier_NS)\n\n"
-            "После подписки нажмите /start ещё раз."
-        )
-        bot.send_message(chat_id, text, parse_mode="Markdown")
-        return
-
-    # Показываем кнопки с прайсами
-    markup = types.InlineKeyboardMarkup()
-    for key, (label, _) in price_files.items():
-        markup.add(types.InlineKeyboardButton(text=label, callback_data=key))
-
-    bot.send_message(chat_id, "💬 *Выберите интересующий вас прайс:*", reply_markup=markup, parse_mode="Markdown")
-
-# Обработка нажатий на кнопки
-@bot.callback_query_handler(func=lambda call: call.data in price_files)
-def send_pdf(call):
-    _, filename = price_files[call.data]
-    try:
-        with open(filename, "rb") as f:
-            bot.send_document(call.message.chat.id, f, caption=filename)
-    except:
-        bot.send_message(call.message.chat.id, "❗️Ошибка при отправке файла.")
-
-# Flask для Render (не даёт боту уснуть)
+# --- Поддержка /ping для Render ---
 @app.route('/')
 def index():
     return "Бот работает."
@@ -71,13 +32,80 @@ def index():
 def ping():
     return "pong"
 
-# Запуск Flask-сервера в отдельном потоке
+# --- Проверка подписки ---
+def is_subscribed(chat_id):
+    try:
+        member = bot.get_chat_member(f"@{CHANNEL_USERNAME}", chat_id)
+        return member.status in ["member", "creator", "administrator"]
+    except:
+        return False
+
+# --- Логирование действий ---
+def log_event(text):
+    try:
+        bot.send_message(ADMIN_CHAT_ID, text)
+    except Exception as e:
+        print(f"Ошибка логирования: {e}")
+
+# --- Главное меню с кнопками ---
+def show_price_menu(chat_id):
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    for key, (label, _) in price_files.items():
+        markup.add(types.InlineKeyboardButton(text=label, callback_data=key))
+    markup.add(
+        types.InlineKeyboardButton("📞 Связаться с мастером", url="https://t.me/atelier_ns"),
+        types.InlineKeyboardButton("🌐 Посетить сайт", url="https://atelierns.ru")
+    )
+    bot.send_message(chat_id, "💬 *Выберите интересующий вас прайс:*", reply_markup=markup, parse_mode="Markdown")
+
+# --- Обработка /start ---
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    chat_id = message.chat.id
+    if not is_subscribed(chat_id):
+        text = (
+            "✨ *Рады приветствовать Вас в ателье Натальи Савиной.*\n\n"
+            "Чтобы получить доступ к прайсам, пожалуйста, подпишитесь на наш канал:\n"
+            "👉 [@atelier_NS](https://t.me/atelier_NS)\n\n"
+            "После подписки нажмите /start ещё раз."
+        )
+        bot.send_message(chat_id, text, parse_mode="Markdown")
+        return
+
+    show_price_menu(chat_id)
+    log_event(f"✅ @{message.from_user.username or 'без_юзернейма'} открыл бот")
+
+# --- Обработка кнопок ---
+@bot.callback_query_handler(func=lambda call: True)
+def callback_handler(call):
+    if call.data == "back":
+        show_price_menu(call.message.chat.id)
+        return
+
+    if call.data in price_files:
+        label, filename = price_files[call.data]
+        try:
+            with open(filename, "rb") as f:
+                bot.send_document(call.message.chat.id, f, caption=filename)
+            log_event(f"📥 @{call.from_user.username or 'без_юзернейма'} запросил прайс: {label}")
+        except:
+            bot.send_message(call.message.chat.id, "❗️Ошибка при отправке файла.")
+
+        # Кнопка "Назад"
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data="back"))
+        bot.send_message(call.message.chat.id, "Вы можете вернуться назад и выбрать другой прайс:", reply_markup=markup)
+
+# --- Обработка обычных сообщений (вопросов) ---
+@bot.message_handler(func=lambda m: True)
+def handle_question(message):
+    bot.send_message(message.chat.id, "Спасибо за ваше сообщение! Мы свяжемся с вами в ближайшее время.")
+    log_event(f"❓ Вопрос от @{message.from_user.username or 'без_юзернейма'}: {message.text}")
+
+# --- Flask-сервер для Render ---
 def run_flask():
     app.run(host="0.0.0.0", port=10000)
 
 print("Бот запущен.")
 threading.Thread(target=run_flask).start()
 bot.polling()
-@bot.message_handler(commands=['id'])
-def send_user_id(message):
-    bot.send_message(message.chat.id, f"Ваш user_id: `{message.chat.id}`", parse_mode="Markdown")
