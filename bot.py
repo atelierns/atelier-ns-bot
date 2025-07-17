@@ -53,7 +53,7 @@ def show_price_menu(chat_id):
     for key, (label, _) in price_files.items():
         markup.add(types.InlineKeyboardButton(text=label, callback_data=key))
     markup.add(
-        types.InlineKeyboardButton("📞 Связаться с мастером", url="https://t.me/atelier_ns"),
+        types.InlineKeyboardButton("📞 Связаться с мастером", url="https://t.me/atelierNS"),
         types.InlineKeyboardButton("🌐 Посетить сайт", url="https://atelierns.ru")
     )
     bot.send_message(chat_id, "💬 *Выберите интересующий вас прайс:*", reply_markup=markup, parse_mode="Markdown")
