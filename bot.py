@@ -104,7 +104,9 @@ def handle_question(message):
 
 # --- Flask-сервер для Render ---
 def run_flask():
-    app.run(host="0.0.0.0", port=10000)
+    import os
+port = int(os.environ.get("PORT", 10000))
+app.run(host="0.0.0.0", port=port)
 
 print("Бот запущен.")
 threading.Thread(target=run_flask).start()
