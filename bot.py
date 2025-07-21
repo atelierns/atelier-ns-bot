@@ -1,21 +1,20 @@
-import telebot
 import os
+import telebot
 from telebot import types
 from flask import Flask
 import threading
 
-# Получаем токен из переменных окружения
 TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Telegram ID для логов
+# Твой Telegram ID для логов
 ADMIN_CHAT_ID = 7564532772
 
-# Канал для обязательной подписки
+# Канал, на который нужна подписка
 CHANNEL_USERNAME = "atelier_NS"  # без @
 
-# Сопоставление кнопок с названиями PDF-файлов
+# Файлы прайсов
 price_files = {
     "man": ("👔 Пошив мужской одежды", "Прайс М.pdf"),
     "woman": ("👗 Пошив женской одежды", "Прайс Ж.pdf"),
@@ -24,12 +23,12 @@ price_files = {
     "repair": ("🧵 Ремонт и подгонка", "Прайс ремонт и подгонка.pdf")
 }
 
-# --- Flask-хендлеры для проверки статуса приложения ---
-@app.route('/')
+# --- Flask роуты для Render ---
+@app.route("/")
 def index():
     return "Бот работает."
 
-@app.route('/ping')
+@app.route("/ping")
 def ping():
     return "pong"
 
@@ -41,14 +40,14 @@ def is_subscribed(chat_id):
     except:
         return False
 
-# --- Логирование сообщений в личный Telegram ---
+# --- Логирование событий ---
 def log_event(text):
     try:
         bot.send_message(ADMIN_CHAT_ID, text)
     except Exception as e:
         print(f"Ошибка логирования: {e}")
 
-# --- Главное меню с прайсами ---
+# --- Меню выбора прайса ---
 def show_price_menu(chat_id):
     markup = types.InlineKeyboardMarkup(row_width=2)
     for key, (label, _) in price_files.items():
@@ -76,7 +75,7 @@ def handle_start(message):
     show_price_menu(chat_id)
     log_event(f"✅ @{message.from_user.username or 'без_юзернейма'} открыл бот")
 
-# --- Обработка нажатий на кнопки ---
+# --- Обработка выбора прайса ---
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     if call.data == "back":
@@ -96,18 +95,18 @@ def callback_handler(call):
         markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data="back"))
         bot.send_message(call.message.chat.id, "Вы можете вернуться назад и выбрать другой прайс:", reply_markup=markup)
 
-# --- Обработка текстовых сообщений (вопросов) ---
+# --- Обработка обычных сообщений ---
 @bot.message_handler(func=lambda m: True)
 def handle_question(message):
     bot.send_message(message.chat.id, "Спасибо за ваше сообщение! Мы свяжемся с вами в ближайшее время.")
     log_event(f"❓ Вопрос от @{message.from_user.username or 'без_юзернейма'}: {message.text}")
 
-# --- Flask-сервер для Fly.io ---
+# --- Запуск Flask и бота ---
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# --- Запуск ---
-print("Бот запущен.")
-threading.Thread(target=run_flask).start()
-bot.polling()
+if __name__ == "__main__":
+    print("Бот запущен.")
+    threading.Thread(target=run_flask).start()
+    bot.polling()
