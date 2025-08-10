@@ -110,4 +110,5 @@ def run_flask():
 if __name__ == "__main__":
     print("Бот запущен.")
     threading.Thread(target=run_flask).start()
-    bot.polling()
+    #было bot.polling()
+    bot.infinity_polling(skip_pending=True, timeout=30)
