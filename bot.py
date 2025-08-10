@@ -104,7 +104,8 @@ def handle_question(message):
 # --- Запуск Flask и бота ---
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    # было: app.run(host="0.0.0.0", port=port)
+    app.run(host="127.0.0.1", port=port)  # слушаем только localhost
 
 if __name__ == "__main__":
     print("Бот запущен.")
